@@ -51,66 +51,75 @@ class NutritionParser {
         for (index, line) in lines.enumerated() {
             print("DEBUG: Checking line for calories: '\(line)'")
 
-            // Try multiple patterns with increasing flexibility
-            let patterns = [
-                #"calories?\s*(\d+)"#,           // Basic: "Calories 100" or "Calorie 100"
-                #"cal[o0]ries?\s*(\d+)"#,        // "Cal0ries 100"
-                #"cal[o0]r[il1]es?\s*(\d+)"#,    // "Calori1s 100"
-            ]
+            // First, check if "Calories" word exists on this line
+            if line.range(of: "\\bcalor[io0]e?s?\\b", options: [.regularExpression, .caseInsensitive]) != nil {
+                print("DEBUG: Found 'Calories' word on line")
 
-            for pattern in patterns {
-                if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                // Try to find a number on the same line first
+                if let regex = try? NSRegularExpression(pattern: #"\d+"#, options: []) {
                     let nsRange = NSRange(line.startIndex..., in: line)
-                    if let match = regex.firstMatch(in: line, range: nsRange),
-                       let numberRange = Range(match.range(at: 1), in: line) {
-                        if let number = Int(line[numberRange]), number > 0, number < 10000 {
-                            print("DEBUG: Found calories: \(number) using pattern: \(pattern)")
+                    let matches = regex.matches(in: line, range: nsRange)
+
+                    for match in matches {
+                        if let numberRange = Range(match.range, in: line),
+                           let number = Int(line[numberRange]),
+                           number >= 50 && number < 10000 {
+                            print("DEBUG: Found calories on same line: \(number)")
                             return number
                         }
                     }
                 }
-            }
 
-            // Check if current line says "Calories" without a number
-            // Look at BOTH previous and next lines for the calorie number
-            if line.lowercased().contains("calories") || line.lowercased().contains("calorie") {
-                // Try previous line first - for "Amount per serving 250" pattern
+                print("DEBUG: No valid calorie number on 'Calories' line, checking adjacent lines")
+
+                // If no number on same line, check previous line
                 if index > 0 {
                     let previousLine = lines[index - 1]
-                    if previousLine.lowercased().contains("amount") && previousLine.lowercased().contains("serving") {
-                        // Extract all numbers from previous line and take the largest one
-                        if let regex = try? NSRegularExpression(pattern: #"\d+"#, options: []) {
-                            let nsRange = NSRange(previousLine.startIndex..., in: previousLine)
-                            let matches = regex.matches(in: previousLine, range: nsRange)
+                    print("DEBUG: Checking previous line: '\(previousLine)'")
 
-                            var numbers: [Int] = []
-                            for match in matches {
-                                if let numberRange = Range(match.range, in: previousLine),
-                                   let number = Int(previousLine[numberRange]) {
-                                    numbers.append(number)
-                                }
-                            }
+                    // Extract all numbers from previous line
+                    if let regex = try? NSRegularExpression(pattern: #"\d+"#, options: []) {
+                        let nsRange = NSRange(previousLine.startIndex..., in: previousLine)
+                        let matches = regex.matches(in: previousLine, range: nsRange)
 
-                            let calorieNumbers = numbers.filter { $0 >= 50 && $0 < 10000 }
-                            if let largest = calorieNumbers.max() {
-                                print("DEBUG: Found calories from previous line: \(largest)")
-                                return largest
+                        var numbers: [Int] = []
+                        for match in matches {
+                            if let numberRange = Range(match.range, in: previousLine),
+                               let number = Int(previousLine[numberRange]) {
+                                numbers.append(number)
                             }
                         }
-                    }
 
-                    // Also check if previous line just has a number followed by "Daily Value"
-                    // Pattern: "140 % Daily Value*" on line before "Calories ..."
-                    if previousLine.lowercased().contains("daily") || previousLine.lowercased().contains("value") {
-                        if let regex = try? NSRegularExpression(pattern: #"^(\d+)\s*%?\s*(daily|value)"#, options: .caseInsensitive) {
-                            let nsRange = NSRange(previousLine.startIndex..., in: previousLine)
-                            if let match = regex.firstMatch(in: previousLine, range: nsRange),
-                               let numberRange = Range(match.range(at: 1), in: previousLine) {
-                                if let number = Int(previousLine[numberRange]), number >= 50, number < 10000 {
-                                    print("DEBUG: Found calories before 'Daily Value': \(number)")
-                                    return number
-                                }
+                        let calorieNumbers = numbers.filter { $0 >= 50 && $0 < 10000 }
+                        if let largest = calorieNumbers.max() {
+                            print("DEBUG: Found calories from previous line: \(largest)")
+                            return largest
+                        }
+                    }
+                }
+
+                // If still no match, check next line
+                if index < lines.count - 1 {
+                    let nextLine = lines[index + 1]
+                    print("DEBUG: Checking next line: '\(nextLine)'")
+
+                    // Extract all numbers from next line
+                    if let regex = try? NSRegularExpression(pattern: #"\d+"#, options: []) {
+                        let nsRange = NSRange(nextLine.startIndex..., in: nextLine)
+                        let matches = regex.matches(in: nextLine, range: nsRange)
+
+                        var numbers: [Int] = []
+                        for match in matches {
+                            if let numberRange = Range(match.range, in: nextLine),
+                               let number = Int(nextLine[numberRange]) {
+                                numbers.append(number)
                             }
+                        }
+
+                        let calorieNumbers = numbers.filter { $0 >= 50 && $0 < 10000 }
+                        if let largest = calorieNumbers.max() {
+                            print("DEBUG: Found calories from next line: \(largest)")
+                            return largest
                         }
                     }
                 }
