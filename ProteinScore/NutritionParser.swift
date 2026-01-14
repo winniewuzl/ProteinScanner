@@ -48,7 +48,7 @@ class NutritionParser {
     }
 
     private static func parseCalories(from lines: [String]) -> Int? {
-        for line in lines {
+        for (index, line) in lines.enumerated() {
             print("DEBUG: Checking line for calories: '\(line)'")
 
             // Try multiple patterns with increasing flexibility
@@ -66,6 +66,28 @@ class NutritionParser {
                         if let number = Int(line[numberRange]), number > 0, number < 10000 {
                             print("DEBUG: Found calories: \(number) using pattern: \(pattern)")
                             return number
+                        }
+                    }
+                }
+            }
+
+            // Check if current line says "Calories" without a number
+            // and look at previous line for "Amount per serving XXX"
+            if line.lowercased().contains("calories") || line.lowercased().contains("calorie") {
+                if index > 0 {
+                    let previousLine = lines[index - 1]
+                    // Look for "Amount per serving 250" pattern
+                    if previousLine.lowercased().contains("amount") && previousLine.lowercased().contains("serving") {
+                        // Extract number from previous line
+                        if let regex = try? NSRegularExpression(pattern: #"(\d+)"#, options: []) {
+                            let nsRange = NSRange(previousLine.startIndex..., in: previousLine)
+                            if let match = regex.firstMatch(in: previousLine, range: nsRange),
+                               let numberRange = Range(match.range, in: previousLine) {
+                                if let number = Int(previousLine[numberRange]), number > 0, number < 10000 {
+                                    print("DEBUG: Found calories from previous line: \(number)")
+                                    return number
+                                }
+                            }
                         }
                     }
                 }
