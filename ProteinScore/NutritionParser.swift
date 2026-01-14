@@ -72,14 +72,13 @@ class NutritionParser {
             }
 
             // Check if current line says "Calories" without a number
-            // and look at previous line for "Amount per serving XXX"
+            // Look at BOTH previous and next lines for the calorie number
             if line.lowercased().contains("calories") || line.lowercased().contains("calorie") {
+                // Try previous line first - for "Amount per serving 250" pattern
                 if index > 0 {
                     let previousLine = lines[index - 1]
-                    // Look for "Amount per serving 250" pattern
                     if previousLine.lowercased().contains("amount") && previousLine.lowercased().contains("serving") {
                         // Extract all numbers from previous line and take the largest one
-                        // (to avoid getting "1" from "1 bottle" instead of "250")
                         if let regex = try? NSRegularExpression(pattern: #"\d+"#, options: []) {
                             let nsRange = NSRange(previousLine.startIndex..., in: previousLine)
                             let matches = regex.matches(in: previousLine, range: nsRange)
@@ -92,12 +91,25 @@ class NutritionParser {
                                 }
                             }
 
-                            // Filter numbers that could be calories (typically 50-1000)
-                            // and take the largest one
                             let calorieNumbers = numbers.filter { $0 >= 50 && $0 < 10000 }
                             if let largest = calorieNumbers.max() {
                                 print("DEBUG: Found calories from previous line: \(largest)")
                                 return largest
+                            }
+                        }
+                    }
+
+                    // Also check if previous line just has a number followed by "Daily Value"
+                    // Pattern: "140 % Daily Value*" on line before "Calories ..."
+                    if previousLine.lowercased().contains("daily") || previousLine.lowercased().contains("value") {
+                        if let regex = try? NSRegularExpression(pattern: #"^(\d+)\s*%?\s*(daily|value)"#, options: .caseInsensitive) {
+                            let nsRange = NSRange(previousLine.startIndex..., in: previousLine)
+                            if let match = regex.firstMatch(in: previousLine, range: nsRange),
+                               let numberRange = Range(match.range(at: 1), in: previousLine) {
+                                if let number = Int(previousLine[numberRange]), number >= 50, number < 10000 {
+                                    print("DEBUG: Found calories before 'Daily Value': \(number)")
+                                    return number
+                                }
                             }
                         }
                     }
