@@ -72,13 +72,23 @@ func parseCalories(from lines: [String]) -> Int? {
             if index > 0 {
                 let previousLine = lines[index - 1]
                 if previousLine.lowercased().contains("amount") && previousLine.lowercased().contains("serving") {
-                    if let regex = try? NSRegularExpression(pattern: #"(\d+)"#, options: []) {
+                    if let regex = try? NSRegularExpression(pattern: #"\d+"#, options: []) {
                         let nsRange = NSRange(previousLine.startIndex..., in: previousLine)
-                        if let match = regex.firstMatch(in: previousLine, range: nsRange),
-                           let numberRange = Range(match.range, in: previousLine) {
-                            if let number = Int(previousLine[numberRange]), number > 0, number < 10000 {
-                                return number
+                        let matches = regex.matches(in: previousLine, range: nsRange)
+
+                        var numbers: [Int] = []
+                        for match in matches {
+                            if let numberRange = Range(match.range, in: previousLine),
+                               let number = Int(previousLine[numberRange]) {
+                                numbers.append(number)
                             }
+                        }
+
+                        // Filter numbers that could be calories (typically 50-1000)
+                        // and take the largest one
+                        let calorieNumbers = numbers.filter { $0 >= 50 && $0 < 10000 }
+                        if let largest = calorieNumbers.max() {
+                            return largest
                         }
                     }
                 }
